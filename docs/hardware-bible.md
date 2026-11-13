@@ -397,6 +397,12 @@ and no wire can move. Whether a physical barrier stands between them: not record
 
 ## Deadman Power Protector hardware: the bench node
 
+![Deadman Power Protector: the bench node at the bench, its screen reading "The bar is off" above the three keys.](figures/bench-node-desk.jpg)
+
+![Deadman Power Protector: the bench node open from the side, the devkit on its perfboard and the JST-XH cables.](figures/bench-node-open-side.jpg)
+
+![Deadman Power Protector: the bench node open from the front, the back of the screen and the keys' wiring.](figures/bench-node-open-front.jpg)
+
 Schematic box: KEYPAD (BENCH NODE). The bench node makes the decisions. It sits at the bench and holds the three keys,
 the screen, and the buzzer on its cable. It is joined to the mains box by two cables (USB-C power and the 3-pin
 bar-sense cable) and to the presence sensor node by one.

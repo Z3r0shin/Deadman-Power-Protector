@@ -23,6 +23,7 @@
 - [Schematic, PDF export](hardware/KiCad/Power%20Protector%20-%20Schematic.pdf): the A3 sheet on one US Letter landscape page
 - [Schematic, SVG export](docs/figures/power-protector-schematic.svg): the whole sheet; one SVG per schematic box beside it (`docs/figures/schematic-<box>.svg`)
 - Cable drawings, by signal name: `docs/figures/b09-usb.svg`, `b09-barlive.svg`, `b09-radar.svg`, `b09-screen.svg`, `b09-keys.svg`, `b09-buzzer.svg`
+- Photos of the bench node: `docs/figures/bench-node-desk.jpg` (at the bench), `bench-node-open-side.jpg`, `bench-node-open-front.jpg` (open), `bench-node-case.jpg` (its printed case)
 - Block drawings: `docs/figures/b01-system.svg` (the three units), `b05-mains.svg` (mains wiring), `b05-barlive.svg` (bar-live sense)
 
 ## Firmware

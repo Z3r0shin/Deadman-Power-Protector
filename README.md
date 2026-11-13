@@ -1,11 +1,13 @@
 # Deadman Power Protector
 
 A dead man's switch for the workshop/bench top power bar: it manages the soldering iron, glue gun and other 
-I'll-burn-your-house-down hazards you keep forgetting to turn off when you move away of the bench.
+I'll-burn-your-house-down hazards you keep forgetting to turn off when you move away from the bench.
+
+![The Deadman Power Protector's bench node on a desk under a monitor: a black 3D-printed tower with a small OLED screen reading "The bar is off" above three keys.](docs/figures/bench-node-desk.jpg)
 
 The Deadman Power Protector turns a workshop power bar off when you leave the bench (after a programmable delay, of course).
 A Shelly 1PM Gen4 relay in a mains box switches the bar. A bench node (an ESP32-S3 with three keys, a buzzer and a small OLED screen)
-watches for you with an LD2410C radar and warns you before every automatic cut. You press a key and the countdown restarts.
+watches for you with an LD2410C radar and warns you before every automatic cut. You press ON and the countdown restarts; any key answers a warning.
 It is for anyone whose hot, dangerous tools share one power bar and who has, at least an uncomfortable amount of time, walked 
 away with the iron still on.
 
@@ -19,7 +21,7 @@ WiFi goes for a walk, the renewals stop and the Shelly cuts the bar by its own t
 
 With the default settings: 15 minutes without seeing you starts a 5-minute warning (screen and buzzer), any key answers
 it, and an unanswered warning cuts the bar. Going to the bathroom for 2 minutes cuts nothing. There's a programmable 4 
-hours ceiling before an automatic cut. If there are no press of the ON key when the bench node warns, the Shelly cuts. 
+hours ceiling before an automatic cut. If there is no press of a key when the bench node warns, the Shelly cuts. 
 A second, independent sense line in the mains box reads whether the bar is really live, so the Shelly isn't trusted blindly. 
 If the Shelly says off and the bar is still live, the bench node sounds an alarm (just in case the Shelly shits the bed).
 
@@ -108,6 +110,12 @@ An LLM agent can start from [`llms.txt`](llms.txt).
 
 <details>
 <summary>More pictures</summary>
+
+![The bench node open from the side: the ESP32-S3 devkit on its perfboard, the JST-XH cables, and the case's side panel.](docs/figures/bench-node-open-side.jpg)
+
+![The bench node open from the front: the back of the OLED screen and the keys' wiring inside the tower.](docs/figures/bench-node-open-front.jpg)
+
+![The bench node's printed case, closed, on the workbench.](docs/figures/bench-node-case.jpg)
 
 ![The three units of the Deadman Power Protector and what joins them.](docs/figures/b01-system.svg)
 
