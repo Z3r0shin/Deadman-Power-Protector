@@ -1,29 +1,31 @@
 # Deadman Power Protector
 
-A dead man's switch for the workshop power bar: it cuts the soldering irons, glue gun and hot air gun when nobody is at the bench, and never while you are.
+A dead man's switch for the workshop/bench top power bar: it manages the soldering iron, glue gun and other 
+I'll-burn-your-house-down hazards you keep forgetting to turn off when you move away of the bench.
 
-The Deadman Power Protector turns a workshop power bar off when you leave the bench, not on a clock. A Shelly 1PM Gen4
-relay in a mains box switches the bar. A bench node (an ESP32-S3 with three keys, a buzzer and a small OLED screen)
-watches for you with an LD2410C radar, warns you before every automatic cut, and one key press keeps you working. It is
-for anyone whose hot tools share one power bar and who has, at least once, walked upstairs with the iron still on.
+The Deadman Power Protector turns a workshop power bar off when you leave the bench (after a programmable delay, of course).
+A Shelly 1PM Gen4 relay in a mains box switches the bar. A bench node (an ESP32-S3 with three keys, a buzzer and a small OLED screen)
+watches for you with an LD2410C radar and warns you before every automatic cut. You press a key and the countdown restarts.
+It is for anyone whose hot, dangerous tools share one power bar and who has, at least an uncomfortable amount of time, walked 
+away with the iron still on.
 
 **Release version 1** (2026-11-12) · hardware revision A · firmware `v.1.0.20261113T000224Z`
 
 ## The device
 
 It's a dead man's switch, hence the name. The bench node doesn't tell the Shelly "turn off": it keeps telling it "stay
-on for 5 more minutes", every 30 seconds. That's the lease. If the bench node dies, gets unplugged, crashes, or the
-WiFi goes for a walk, the renewals stop and the Shelly cuts the bar by its own timer. Nothing has to work for the bar
-to go off; things have to keep working for it to stay on.
+on for 5 more minutes", every 30 seconds. That's the lease part. If the bench node dies, gets unplugged, crashes, or the
+WiFi goes for a walk, the renewals stop and the Shelly cuts the bar by its own timer. 
 
 With the default settings: 15 minutes without seeing you starts a 5-minute warning (screen and buzzer), any key answers
-it, and an unanswered warning cuts the bar. Going to the bathroom for 2 minutes cuts nothing. After 4 hours with no
-press of ON, the Shelly cuts by itself anyway, warned beforehand. A second, independent sense line in the mains box
-reads whether the bar is really live, so the Shelly isn't trusted blindly. If the Shelly says off and the bar is still
-live, the bench node sounds an alarm.
+it, and an unanswered warning cuts the bar. Going to the bathroom for 2 minutes cuts nothing. There's a programmable 4 
+hours ceiling before an automatic cut. If there are no press of the ON key when the bench node warns, the Shelly cuts. 
+A second, independent sense line in the mains box reads whether the bar is really live, so the Shelly isn't trusted blindly. 
+If the Shelly says off and the bar is still live, the bench node sounds an alarm (just in case the Shelly shits the bed).
 
-The bench node's screen has a pig. Bar off, the pig chills; bar on and you at the bench, the pig works; you gone, the
-pig gets more and more worried until the warning takes over. Pure fun, zero safety value, absolutely necessary.
+The bench node's screen has a pig. He's Gilbert. Why a pig? Because I love pigs. You don't like pigs? What's wrong with you?
+With the Shelly off, Gilbert chills out. With the Shelly on (and with you at the bench), Gilbert works. If you go away from 
+the radar, Gilbert gets more and more worried until the warning takes over. Zero safety value but absolutely necessary.
 
 | | | | | | |
 |:---:|:---:|:---:|:---:|:---:|:---:|
@@ -42,14 +44,13 @@ Each one runs for about 10 seconds here; on the device a pig scene stays 20 seco
 
 ## Specifications
 
-- **Switching:** Shelly 1PM Gen4 smart relay in a mains box, 120 V; every mains part sized for 15 A continuous.
-- **Microcontroller:** ESP32-S3 devkit, N16R8 (YD-ESP32-S3), the bench node.
-- **Presence:** Hi-Link LD2410C 24 GHz radar in its own small sensor node; optionally, a camera check through Frigate
-  that can take presence away, never add it.
-- **Display:** SSD1306 OLED module on I²C.
-- **Input:** three keys with LEDs: ON, OVERRIDE (stay on for a set time) and FN.
-- **Sound:** magnetic buzzer, driven by a BC337 transistor.
-- **Power:** the mains box plugs into the wall and feeds the bench node 5 V over a USB-C cable.
+- **Switching:** Shelly 1PM Gen4 smart relay in a mains box, 120 V; every mains part sized for 15 A continuous
+- **Microcontroller:** ESP32-S3, the bench node
+- **Presence:** LD2410C radar; optionally, a camera check through Frigate
+- **Display:** SSD1306 OLED module
+- **Input:** three keys with LEDs: ON, OVERRIDE (stay on for a set time) and an FN key
+- **Sound:** magnetic passive buzzer
+- **Power:** the mains box plugs into the wall and feeds the bench node 5 V over a USB-C cable
 - **Enclosures:** your choice; the Hardware Bible lists what the mains box's enclosure must do.
 - **Firmware:** absence cut with a warning, a hold for long jobs, a 4-hour ceiling enforced by the Shelly itself,
   alarms for a stuck relay or a lost link, a web page, Home Assistant over MQTT, updates over WiFi.
