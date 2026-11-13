@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bench node</title>
+<style>
+:root{--bg:#14161a;--card:#1d2026;--line:#2c3038;--fg:#e6e8eb;--dim:#8b919c;--acc:#f0b429;--ok:#3ecf8e;--bad:#ef5350;--blue:#4ea1ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:2;background:#101216;border-bottom:1px solid var(--line);padding:10px 14px}
+h1{font-size:16px;margin:0 0 8px;font-weight:600}
+h1 small{color:var(--dim);font-weight:400}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--dim)}
+.pill.ok{color:var(--ok);border-color:#285a44}.pill.bad{color:var(--bad);border-color:#6b2a2a}.pill.warn{color:var(--acc);border-color:#6b5320}
+nav{display:flex;gap:2px;margin-top:10px;overflow-x:auto}
+nav button{background:none;border:0;color:var(--dim);padding:6px 12px;border-radius:6px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--card);color:var(--fg)}
+main{padding:14px;max-width:1100px;margin:0 auto}
+.tab{display:none}.tab.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:0 0 10px;font-weight:600}
+.big{font-size:26px;font-weight:600}
+.row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dashed #262a31}
+.row:last-child{border-bottom:0}.row span:first-child{color:var(--dim)}
+button.b{background:#2a2f38;color:var(--fg);border:1px solid #3a404b;border-radius:7px;padding:6px 11px;font:inherit;cursor:pointer;margin:3px 4px 3px 0}
+button.b:hover{border-color:var(--acc)}button.b.danger{border-color:#7a3333}button.b.go{border-color:#2f6b50}
+input[type=range]{width:100%;accent-color:var(--acc)}
+input[type=text],input[type=password],input[type=number],select{background:#121418;color:var(--fg);border:1px solid #3a404b;border-radius:6px;padding:5px 7px;font:inherit}
+input[type=number]{width:72px}
+label.sl{display:block;margin:8px 0 2px;color:var(--dim)}label.sl b{color:var(--fg);float:right}
+table{border-collapse:collapse;width:100%}td,th{padding:3px 4px;text-align:center;border-bottom:1px solid #262a31;font-size:12px}th{color:var(--dim);font-weight:500}
+table input[type=number]{width:52px;padding:3px 4px}
+pre#log{background:#0c0d10;border:1px solid var(--line);border-radius:8px;padding:10px;height:56vh;overflow:auto;margin:0 0 8px;font:12px/1.35 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+.note{color:var(--dim);font-size:12px;margin-top:6px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);padding:8px 14px;border-radius:8px;background:#3a2f12;color:var(--acc);border:1px solid #6b5320;display:none;max-width:90vw;z-index:5}
+#toast.bad{background:#3a1616;color:#ff8a80;border-color:#6b2a2a}
+.prog{height:8px;background:#121418;border-radius:4px;overflow:hidden;margin-top:8px}.prog div{height:100%;width:0;background:var(--acc)}
+.verdict{margin-top:8px;padding:8px;border-radius:7px;background:#121418}
+.hero{border-radius:14px;padding:18px;margin-bottom:14px;text-align:center;border:1px solid var(--line);background:var(--card);transition:border-color .2s}
+.hero .phase{font-size:clamp(26px,7vw,34px);font-weight:700;letter-spacing:.03em}
+.hero .herosub{color:var(--dim);margin-top:4px;font-size:14px}
+.hero .countdown{font-size:clamp(32px,11vw,46px);font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums}
+.phase-off{border-color:var(--line)}.phase-off .phase{color:var(--dim)}
+.phase-on{border-color:#285a44}.phase-on .phase{color:var(--ok)}
+.phase-hold{border-color:#2c4a6b}.phase-hold .phase{color:var(--blue)}.phase-hold .countdown{color:var(--blue)}
+.phase-warning{border-color:#6b5320;animation:pulse 1s infinite}.phase-warning .phase,.phase-warning .countdown{color:var(--acc)}
+.phase-alarm{border-color:#6b2a2a;animation:pulse .5s infinite}.phase-alarm .phase,.phase-alarm .countdown{color:var(--bad)}
+.phase-unknown{border-color:#6b5320}.phase-unknown .phase{color:var(--acc)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 rgba(0,0,0,0)}50%{box-shadow:0 0 22px currentColor}}
+#d_alarm{color:var(--bad);font-weight:600}
+.bars{display:flex;align-items:flex-end;gap:4px;height:124px;margin-top:6px;overflow-x:auto}
+.gate{flex:1;min-width:22px;display:flex;flex-direction:column;align-items:center;height:100%}
+.gcols{display:flex;gap:2px;height:104px;width:100%;justify-content:center}
+.gcol{position:relative;width:42%;height:100%;background:#121418;border-radius:2px 2px 0 0}
+.gcol .fill{position:absolute;bottom:0;left:0;right:0;border-radius:2px 2px 0 0}
+.gcol.m .fill{background:var(--acc)}.gcol.s .fill{background:var(--blue)}
+.gcol .marker{position:absolute;left:-2px;right:-2px;height:0;border-top:2px dashed #fff;opacity:.85}
+.gate span{font-size:10px;color:var(--dim);margin-top:3px}
+.setrow{padding:8px 0;border-bottom:1px dashed #262a31}
+.setrow:last-child{border-bottom:0}
+.setrow .lbl{color:var(--fg);font-size:13px;margin-bottom:4px}
+.setrow .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.setrow .ctl input[type=range]{flex:1;min-width:80px}
+.help{color:var(--dim);font-size:11px;margin-top:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bench node</h1>
+  <div class="pills" id="pills"><span class="pill">connecting...</span></div>
+  <nav id="nav"></nav>
+</header>
+<main>
+  <section class="tab on" data-t="Dashboard">
+    <div class="hero" id="hero">
+      <div class="phase" id="heroPhase">-</div>
+      <div class="herosub" id="heroSub"></div>
+      <div class="countdown" id="heroCountdown"></div>
+    </div>
+    <div class="grid">
+      <div class="card"><h2>Countdowns</h2>
+        <div class="row"><span>Absence cut due in</span><span id="d_due">-</span></div>
+        <div class="row"><span>Hold left</span><span id="d_hold">-</span></div>
+        <div class="row"><span>Ceiling left</span><span id="d_ceil">-</span></div>
+        <div class="row"><span>Lease left</span><span id="d_lease">-</span></div>
+        <div class="row"><span>Last Shelly answer</span><span id="d_ago">-</span></div>
+      </div>
+      <div class="card"><h2>Presence</h2>
+        <div class="big" id="d_pres">-</div>
+        <div class="row"><span>Last seen</span><span id="d_seenago">-</span></div>
+      </div>
+      <div class="card"><h2>Bar</h2>
+        <div class="row"><span>Shelly relay</span><span id="d_shelly">-</span></div>
+        <div class="row"><span>Bar sense</span><span id="d_sense">-</span></div>
+        <div class="verdict" id="d_verdict">-</div>
+      </div>
+      <div class="card"><h2>Power</h2>
+        <div class="row"><span>Power</span><span id="d_w">-</span></div>
+        <div class="row"><span>Voltage</span><span id="d_v">-</span></div>
+        <div class="row"><span>Current</span><span id="d_a">-</span></div>
+        <div class="row"><span>Shelly temperature</span><span id="d_t">-</span></div>
+      </div>
+      <div class="card"><h2>Clock</h2>
+        <div class="big" id="d_clock">-</div>
+        <div class="row"><span>Quiet hours</span><span id="d_quiet">-</span></div>
+      </div>
+      <div class="card" style="grid-column:1/-1"><h2>Controls</h2>
+        <button class="b go" onclick="if(confirm('Turn the power bar ON?'))act('bar.on')">Bar ON</button>
+        <button class="b danger" onclick="act('bar.off')">Bar OFF</button>
+        <span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px">Hold for
+          <input type="number" id="holdmin" value="30" min="0" max="999"> min
+          <button class="b" onclick="act('hold.set',val('holdmin'))">Set</button>
+        </span>
+        <button class="b danger" id="silenceBtn" style="display:none" onclick="act('alarm.silence')">Silence alarm</button>
+        <button class="b" onclick="act('warn.test')">Test warning sound</button>
+        <div class="note" id="d_alarm"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" data-t="Radar">
+    <div class="grid">
+      <div class="card"><h2>Target</h2>
+        <div class="row"><span><b>Counted as you</b> (this drives the cut)</span><b id="r_counted">-</b></div>
+        <div class="row"><span>Camera (Frigate)</span><span id="r_cam">-</span></div>
+        <div class="row"><span>Sensor's own report (raw)</span><span id="r_state">-</span></div>
+        <div class="row"><span>Frames / s</span><span id="r_fps">-</span></div>
+        <div class="row"><span>Sensor link</span><span id="r_ok">-</span></div>
+        <div class="row"><span>Moving</span><span id="r_m">-</span></div>
+        <div class="row"><span>Still</span><span id="r_s">-</span></div>
+        <div class="row"><span>Detection distance</span><span id="r_d">-</span></div>
+        <div class="row"><span>RADAR_OUT pin</span><span id="r_out">-</span></div>
+        <div style="margin-top:8px">
+          <button class="b" onclick="act('radar.read')">Read sensor</button>
+          <button class="b" onclick="act('radar.eng',1)">Per-gate data ON</button>
+          <button class="b" onclick="act('radar.eng',0)">Per-gate data off</button>
+          <button class="b danger" onclick="act('radar.restart')">Restart sensor</button>
+        </div>
+      </div>
+      <div class="card" style="grid-column:span 2"><h2>Per-gate energy now, and stored thresholds</h2>
+        <div class="bars" id="gbars"></div>
+        <div class="note">Amber = moving energy, blue = still energy, per 0.75 m gate. Dashed line = the stored threshold for that gate (crossed = detected). Needs "Per-gate data ON".</div>
+      </div>
+      <div class="card" style="grid-column:1/-1"><h2>Calibrate</h2>
+        <button class="b go" onclick="calibrate()">Calibrate</button>
+        <button class="b danger" onclick="act('radar.cal_abort')">Abort</button>
+        <button class="b" onclick="act('radar.apply')">Apply thresholds to sensor</button>
+        <div id="calBox" class="note" style="margin-top:8px">Not calibrating.</div>
+      </div>
+      <div class="card" style="grid-column:1/-1"><h2>Gate thresholds (0-100, lower = more sensitive)</h2>
+        <table id="gtab"></table>
+        <div class="note">Gate 0 = 0-0.75 m, gate g starts at g &times; 0.75 m.</div>
+        <div id="radarExtra" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" data-t="Console" id="consoleSection">
+    <pre id="log"></pre>
+    <form onsubmit="sendCmd();return false" style="display:flex;gap:6px">
+      <input type="text" id="cin" placeholder="command, then Enter" style="flex:1" autocomplete="off">
+      <button class="b">Send</button>
+    </form>
+  </section>
+
+  <section class="tab" data-t="System" id="systemSection">
+    <div class="grid">
+      <div class="card"><h2>Board</h2>
+        <div class="row"><span>Firmware</span><span id="s_fw">-</span></div>
+        <div class="row"><span>Commit</span><span id="s_commit">-</span></div>
+        <div class="row"><span>Built</span><span id="s_built">-</span></div>
+        <div class="row"><span>MAC</span><span id="s_mac">-</span></div>
+        <div class="row"><span>Network</span><span id="s_net">-</span></div>
+        <div class="row"><span>Address</span><span id="s_ip">-</span></div>
+        <div class="row"><span>Uptime</span><span id="s_up">-</span></div>
+        <div class="row"><span>Free heap</span><span id="s_heap">-</span></div>
+        <button class="b danger" onclick="if(confirm('Reboot the bench node?'))post('/api/reboot','')">Reboot</button>
+        <button class="b danger" onclick="if(confirm('Reset every setting to its default? The house WiFi and the login are kept. The bench node restarts.'))act('cfg.reset')">Reset settings to defaults</button>
+      </div>
+      <div class="card"><h2>House WiFi</h2>
+        <label class="sl">Network name</label><input type="text" id="wssid" style="width:100%">
+        <label class="sl">Password (blank = keep the stored one)</label><input type="password" id="wpass" style="width:100%">
+        <button class="b go" id="netsave" disabled onclick="saveNet()">Save and rejoin</button>
+        <div class="note">The node reboots to join. Then: http://bench-node.local/</div>
+      </div>
+      <div class="card"><h2>MQTT</h2>
+        <div class="row"><span>Enabled</span><span id="s_mqtt">-</span></div>
+        <div class="row"><span>Error</span><span id="s_mqtterr">-</span></div>
+        <div class="note">Settings are on the Network tab.</div>
+      </div>
+      <div class="card"><h2>Firmware update</h2>
+        <input type="file" id="fw" accept=".bin">
+        <button class="b go" onclick="upload()">Upload</button>
+        <div class="prog"><div id="fwp"></div></div>
+        <div class="note">The .bin from PlatformIO. The node reboots into it.</div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+let S = null, SCHEMA = null, VALUES = {}, KEYROW = {}, settingsTabs = [];
+let logNext = 0, pollMs = 1000, timer = null, curTab = 'Dashboard', toastT = null, prevCalStage = null;
+
+function lab(id, t) { const e = $(id); if (e) e.textContent = t; }
+function val(id) { const e = $(id); return e ? e.value : ''; }
+function setIfIdle(id, v) { const e = $(id); if (e && document.activeElement !== e) e.value = v; }
+function escH(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+function toast(m, bad) {
+  const t = $('toast'); t.textContent = m; t.className = bad ? 'bad' : ''; t.style.display = 'block';
+  clearTimeout(toastT); toastT = setTimeout(() => { t.style.display = 'none'; }, bad ? 9000 : 2500);
+}
+
+async function req(url, opts, ms) {
+  const ac = new AbortController(); const to = setTimeout(() => ac.abort(), ms || 8000);
+  try { const r = await fetch(url, Object.assign({ signal: ac.signal, cache: 'no-store' }, opts || {})); return r; } finally { clearTimeout(to); }
+}
+async function reqJSON(url, ms) { try { const r = await req(url, null, ms); return await r.json(); } catch (e) { return null; } }
+async function postRaw(url, body) {
+  try {
+    const r = await req(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body });
+    return await r.json().catch(() => ({ ok: r.ok ? 1 : 0, m: 'HTTP ' + r.status }));
+  } catch (e) { return null; }
+}
+async function post(url, body) {
+  const j = await postRaw(url, body);
+  if (j === null) { toast('no answer from the bench node', true); return null; }
+  toast(j.m || (j.ok ? 'done' : 'refused'), !j.ok);
+  return j;
+}
+function act(a, v) { return post('/api/act', 'a=' + encodeURIComponent(a) + (v === undefined ? '' : '&v=' + encodeURIComponent(v))); }
+
+async function sendSet(k, v) {
+  const prev = VALUES[k];
+  const j = await postRaw('/api/set', 'k=' + encodeURIComponent(k) + '&v=' + encodeURIComponent(v));
+  if (j === null) { toast('no answer from the bench node', true); applyValueToField(k, prev); return; }
+  if (j.ok) {
+    VALUES[k] = j.v; applyValueToField(k, j.v);
+    if (j.clamped) toast('clamped to ' + j.v);
+  } else {
+    toast(j.m || 'refused', true); applyValueToField(k, prev);
+  }
+}
+function applyValueToField(k, v) {
+  const r = KEYROW[k]; if (!r) return;
+  try {
+    if (r.kind === 0) { setIfIdle('sl_' + k, v); setIfIdle('nb_' + k, v); }
+    else if (r.kind === 1) { const e = $('cb_' + k); if (e && document.activeElement !== e) e.checked = !!v; }
+    else if (r.kind === 2) { setIfIdle('tx_' + k, v); }
+    else if (r.kind === 3) { setIfIdle('sel_' + k, v); }
+  } catch (e) {}
+}
+function applyAllValues() {
+  Object.keys(VALUES).forEach(k => { if (!k.endsWith('_set')) applyValueToField(k, VALUES[k]); });
+  Object.keys(KEYROW).forEach(k => {
+    if (KEYROW[k].kind === 4) { const e = $('pw_' + k); if (e) e.placeholder = VALUES[k + '_set'] ? 'unchanged' : '(not set)'; }
+  });
+}
+async function refreshValues() {
+  const j = await reqJSON('/api/values');
+  if (j) { Object.assign(VALUES, j); applyAllValues(); }
+}
+async function loadValues() {
+  while (Object.keys(VALUES).length === 0) {
+    const j = await reqJSON('/api/values');
+    if (j) { VALUES = j; break; }
+    await sleep(2500);
+  }
+  applyAllValues();
+}
+async function loadSchema() {
+  while (!SCHEMA) {
+    const j = await reqJSON('/api/schema');
+    if (j && j.rows) { SCHEMA = j; break; }
+    await sleep(2500);
+  }
+  buildSettingsSections();
+}
+
+function ctlHtml(r) {
+  const k = r.k;
+  if (r.kind === 0) {
+    const lo = r.lo != null ? r.lo : 0, hi = r.hi != null ? r.hi : 100, st = r.st || 1;
+    return '<input type="range" id="sl_' + k + '" min="' + lo + '" max="' + hi + '" step="' + st + '" oninput="$(\'nb_' + k + '\').value=this.value" onchange="sendSet(\'' + k + '\',this.value)">'
+      + '<input type="number" id="nb_' + k + '" min="' + lo + '" max="' + hi + '" step="' + st + '" oninput="$(\'sl_' + k + '\').value=this.value" onchange="sendSet(\'' + k + '\',this.value)">'
+      + (r.u ? '<span class="note" style="white-space:nowrap">' + escH(r.u) + '</span>' : '');
+  }
+  if (r.kind === 1) return '<input type="checkbox" id="cb_' + k + '" onchange="sendSet(\'' + k + '\',this.checked?1:0)">';
+  if (r.kind === 2) return '<input type="text" id="tx_' + k + '" style="flex:1;min-width:120px" onchange="sendSet(\'' + k + '\',this.value)">';
+  if (r.kind === 3) {
+    const opts = (r.ch || []).map((c, i) => '<option value="' + i + '">' + escH(c) + '</option>').join('');
+    return '<select id="sel_' + k + '" onchange="sendSet(\'' + k + '\',this.selectedIndex)">' + opts + '</select>';
+  }
+  if (r.kind === 4) return '<input type="password" id="pw_' + k + '" placeholder="unchanged" style="flex:1;min-width:120px" onchange="if(this.value)sendSet(\'' + k + '\',this.value)">';
+  return '';
+}
+function settingRowHtml(r) {
+  return '<div class="setrow"><div class="lbl">' + escH(r.l || r.k) + '</div><div class="ctl">' + ctlHtml(r) + '</div>'
+    + (r.help ? '<div class="help">' + escH(r.help) + '</div>' : '') + '</div>';
+}
+
+function buildSettingsSections() {
+  if (!SCHEMA || !SCHEMA.rows) return;
+  const rowsByTab = {};
+  SCHEMA.rows.forEach(r => { KEYROW[r.k] = r; (rowsByTab[r.t] = rowsByTab[r.t] || []).push(r); });
+  settingsTabs = (SCHEMA.tabs || []).filter(t => t !== 'Radar');
+  const anchor = $('consoleSection');
+  settingsTabs.forEach(t => {
+    if (document.querySelector('section.tab[data-t="' + t + '"]')) return;
+    const rows = rowsByTab[t] || [];
+    const acts = (SCHEMA.acts || []).filter(x => x.t === t);
+    const sec = document.createElement('section'); sec.className = 'tab'; sec.dataset.t = t;
+    const btns = acts.length ? '<div class="card" style="grid-column:1/-1"><h2>Try it</h2>' + acts.map(x =>
+      '<button class="b" data-a="' + escH(x.a) + '" data-v="' + escH(x.v) + '">' + escH(x.l) + '</button>').join('') + '</div>' : '';
+    sec.innerHTML = '<div class="grid">' + btns + '<div class="card" style="grid-column:1/-1"><h2>' + escH(t) + '</h2>' + rows.map(settingRowHtml).join('') + '</div></div>';
+    sec.querySelectorAll('button[data-a]').forEach(bt => { bt.onclick = () => act(bt.dataset.a, bt.dataset.v); });
+    anchor.parentNode.insertBefore(sec, anchor);
+  });
+  buildRadarSchemaUI(rowsByTab['Radar'] || []);
+  buildNav();
+  applyAllValues();
+}
+function buildRadarSchemaUI(rows) {
+  const gate = {}, extra = [];
+  rows.forEach(r => {
+    const m = /^radar_([ms])(\d+)$/.exec(r.k);
+    if (m) { const g = +m[2]; gate[g] = gate[g] || {}; gate[g][m[1]] = r; }
+    else extra.push(r);
+  });
+  const gates = Object.keys(gate).map(Number).sort((a, b) => a - b);
+  if (gates.length) {
+    let h = '<tr><th>Gate</th>' + gates.map(g => '<th>' + g + '<br><small>' + (g * 0.75).toFixed(2) + ' m</small></th>').join('') + '</tr>';
+    h += '<tr><th>Moving</th>' + gates.map(g => gateCell(gate[g].m)).join('') + '</tr>';
+    h += '<tr><th>Still</th>' + gates.map(g => gateCell(gate[g].s)).join('') + '</tr>';
+    $('gtab').innerHTML = h;
+  } else { $('gtab').innerHTML = ''; }
+  $('radarExtra').innerHTML = extra.map(settingRowHtml).join('');
+}
+function gateCell(r) {
+  if (!r) return '<td>-</td>';
+  const lo = r.lo != null ? r.lo : 0, hi = r.hi != null ? r.hi : 100, st = r.st || 1;
+  return '<td><input type="number" id="nb_' + r.k + '" min="' + lo + '" max="' + hi + '" step="' + st + '" onchange="sendSet(\'' + r.k + '\',this.value)"></td>';
+}
+
+function buildNav() {
+  const order = ['Dashboard', 'Radar'].concat(settingsTabs, ['Console', 'System']);
+  $('nav').innerHTML = order.map(t => '<button>' + escH(t) + '</button>').join('');
+  document.querySelectorAll('#nav button').forEach(b => { b.onclick = () => setTab(b.textContent); });
+  setTab(document.querySelector('section.tab[data-t="' + curTab + '"]') ? curTab : 'Dashboard');
+}
+function setTab(t) {
+  curTab = t;
+  document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.dataset.t === t));
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.textContent === t));
+  if (t === 'System') loadNet();
+  if (t === 'Console') setTimeout(() => { const l = $('log'); if (l) l.scrollTop = l.scrollHeight; }, 0);
+  if (t === 'Radar' || settingsTabs.indexOf(t) >= 0) refreshValues();
+}
+
+function calibrate() {
+  const s = prompt('Leave the room for how many seconds before sampling?', '30');
+  if (s === null) return;
+  const n = parseInt(s, 10);
+  if (!(n >= 0)) { toast('enter a number of seconds', true); return; }
+  act('radar.cal', n);
+}
+
+function sendCmd() { const c = val('cin').trim(); if (!c) return; $('cin').value = ''; post('/api/cmd', 'c=' + encodeURIComponent(c)).then(() => setTimeout(poll, 300)); }
+function addLog(l) {
+  if (!l) return;
+  const el = $('log'); if (!el) return;
+  const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+  let t = el.textContent;
+  if (logNext && l.from > logNext) t += '\n[... older output was overwritten before it could be shown ...]\n';
+  if (logNext && l.from < logNext && l.next < logNext) t += '\n[... the bench node restarted ...]\n';
+  t += l.t || '';
+  if (t.length > 60000) t = t.slice(t.length - 60000);
+  el.textContent = t; logNext = l.next;
+  if (atEnd) el.scrollTop = el.scrollHeight;
+}
+
+async function loadNet() {
+  const b = $('netsave'); if (b) b.disabled = true;
+  const j = await reqJSON('/api/net');
+  if (j) { setIfIdle('wssid', j.ssid || ''); if (b) b.disabled = false; }
+  else toast('could not read the WiFi settings', true);
+}
+function saveNet() {
+  const s = val('wssid').trim(); if (!s) { toast('the network name is empty', true); return; }
+  if (!confirm('Save "' + s + '" and reboot to join it?')) return;
+  post('/api/net', 'ssid=' + encodeURIComponent(s) + '&pass=' + encodeURIComponent(val('wpass')));
+}
+function upload() {
+  const f = $('fw').files[0]; if (!f) { toast('choose a .bin file first', true); return; }
+  if (!confirm('Upload ' + f.name + ' (' + Math.round(f.size / 1024) + ' kB) and reboot into it?')) return;
+  const x = new XMLHttpRequest(), fd = new FormData(); fd.append('f', f, f.name);
+  x.upload.onprogress = e => { if (e.lengthComputable) $('fwp').style.width = (100 * e.loaded / e.total) + '%'; };
+  x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {} toast(j.m || ('HTTP ' + x.status), x.status !== 200); };
+  x.onerror = () => toast('upload failed', true);
+  x.open('POST', '/api/ota'); x.send(fd);
+}
+
+function fmtUp(s) { if (s == null) return '-'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + ' d ' : '') + h + ' h ' + String(m).padStart(2, '0') + ' min'; }
+function fmtCd(s) { if (s == null) return '-'; if (s < 0) return 'n/a'; const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0'); }
+function fmtAgo(s) { if (s == null || s < 0) return 'never'; if (s < 90) return Math.round(s) + ' s ago'; if (s < 5400) return Math.round(s / 60) + ' min ago'; return Math.round(s / 3600) + ' h ago'; }
+
+function renderPills() {
+  const p = [];
+  const ph = S.phase || 'off';
+  p.push('<span class="pill ' + ({ off: '', on: 'ok', hold: 'warn', warning: 'warn', alarm: 'bad', unknown: 'warn' }[ph] || '') + '">' + ph.toUpperCase() + '</span>');
+  const wifiOk = !!S.ip;
+  p.push('<span class="pill ' + (wifiOk ? 'ok' : 'warn') + '">' + (S.ssid || S.mode || 'wifi') + (S.rssi != null ? ' ' + S.rssi + ' dBm' : '') + '</span>');
+  const r = S.radar || {};
+  p.push('<span class="pill ' + (r.ok ? 'ok' : 'bad') + '">radar ' + (r.fps != null && r.fps > 0 ? r.fps + ' fps' : 'NO DATA') + '</span>');
+  const bar = S.bar || {};
+  p.push('<span class="pill ' + (bar.link === 'ok' ? 'ok' : bar.link === 'lost' ? 'bad' : '') + '">shelly ' + (bar.link || 'none') + '</span>');
+  p.push('<span class="pill ' + (bar.sense ? 'warn' : '') + '">bar sense ' + (bar.sense ? 'LIVE' : 'dead') + '</span>');
+  const mq = S.mqtt || {};
+  p.push('<span class="pill ' + (mq.on ? (mq.state === 'up' ? 'ok' : 'warn') : '') + '">mqtt ' + (mq.on ? (mq.state || '-') : 'off') + '</span>');
+  p.push('<span class="pill ' + (S.quiet ? 'warn' : '') + '">' + (S.clock || '--:--') + (S.quiet ? ' quiet' : '') + '</span>');
+  $('pills').innerHTML = p.join('');
+}
+function renderDashboard() {
+  const away = S.away || {}, hold = S.hold || {}, bar = S.bar || {}, warn = S.warn || {}, alarm = S.alarm || {};
+  lab('d_due', fmtCd(away.due)); lab('d_hold', hold.on ? fmtCd(hold.left) : '-');
+  lab('d_ceil', fmtCd(bar.ceil)); lab('d_lease', fmtCd(bar.lease)); lab('d_ago', fmtAgo(bar.ago));
+  lab('d_pres', away.seen ? 'seen' : 'not seen'); lab('d_seenago', fmtAgo(away.ago));
+  const shTxt = bar.shelly === 1 ? 'ON' : bar.shelly === 0 ? 'OFF' : 'unknown';
+  lab('d_shelly', shTxt); lab('d_sense', bar.sense ? 'LIVE' : 'dead');
+  const vEl = $('d_verdict');
+  if (bar.shelly === -1 || bar.shelly == null) { vEl.textContent = 'Shelly unknown: no comparison.'; vEl.style.color = ''; }
+  else { const agree = (!!bar.shelly) === (!!bar.sense); vEl.textContent = agree ? 'Agree.' : 'DISAGREE - the Shelly says ' + shTxt + ', the sense says ' + (bar.sense ? 'LIVE' : 'dead') + '.'; vEl.style.color = agree ? '' : 'var(--bad)'; }
+  lab('d_w', bar.w != null ? bar.w + ' W' : '-'); lab('d_v', bar.v != null ? bar.v + ' V' : '-');
+  lab('d_a', bar.a != null ? bar.a + ' A' : '-'); lab('d_t', bar.t != null ? bar.t + ' °C' : '-');
+  lab('d_clock', S.clock || '--:--'); lab('d_quiet', S.quiet ? 'quiet now' : 'not quiet');
+  const ph = S.phase || 'off'; $('hero').className = 'hero phase-' + ph;
+  lab('heroPhase', ({ off: 'OFF', on: 'ON', hold: 'HOLD', warning: 'WARNING', alarm: 'ALARM', unknown: 'UNKNOWN' }[ph] || ph.toUpperCase()));
+  let sub = '', cd = '';
+  if (ph === 'warning') { sub = 'warning before a ' + (warn.why || '') + ' cut'; cd = fmtCd(warn.left); }
+  else if (ph === 'alarm') { sub = alarm.text || alarm.code || 'alarm'; }
+  else if (ph === 'hold') { sub = 'hold running'; cd = fmtCd(hold.left); }
+  else if (ph === 'on') { sub = 'bar is on'; }
+  else if (ph === 'unknown') { sub = 'no answer from the Shelly yet: state unknown' + ((S.bar || {}).sense ? ' - the bar sense says LIVE' : ''); }
+  else { sub = 'bar is off'; }
+  lab('heroSub', sub); lab('heroCountdown', cd);
+  const sb = $('silenceBtn');
+  if (sb) {
+    const minor = alarm.minor && !alarm.minor_silenced;
+    sb.style.display = (alarm.on && !alarm.silenced) || minor ? '' : 'none';
+    sb.textContent = alarm.on ? 'Silence alarm' : 'Silence fault beeps (' + (alarm.code || 'fault') + ')';
+  }
+  lab('d_alarm', alarm.on ? (alarm.text || alarm.code || 'ALARM') : '');
+}
+function renderRadarBars() {
+  const r = S.radar || {}; const gm = r.gm || [], gs = r.gs || [];
+  let html = '';
+  for (let g = 0; g < 9; g++) {
+    const mv = r.eng ? (gm[g] || 0) : 0, sv = r.eng ? (gs[g] || 0) : 0;
+    const mt = VALUES['radar_m' + g], st = VALUES['radar_s' + g];
+    html += '<div class="gate"><div class="gcols">'
+      + '<div class="gcol m"><div class="fill" style="height:' + mv + '%"></div>' + (mt != null ? '<div class="marker" style="bottom:' + mt + '%"></div>' : '') + '</div>'
+      + '<div class="gcol s"><div class="fill" style="height:' + sv + '%"></div>' + (st != null ? '<div class="marker" style="bottom:' + st + '%"></div>' : '') + '</div>'
+      + '</div><span>' + g + '</span></div>';
+  }
+  $('gbars').innerHTML = html;
+}
+function renderCal() {
+  const c = (S.radar && S.radar.cal) || {};
+  const box = $('calBox'); if (!box) return;
+  if (!c.on) { box.textContent = 'Not calibrating.'; prevCalStage = null; return; }
+  let h = '<div class="row"><span>Stage</span><span>' + (c.stage || '-') + '</span></div>'
+    + '<div class="row"><span>Time left</span><span>' + (c.left != null ? c.left + ' s' : '-') + '</span></div>';
+  if (c.stage === 'done') {
+    h += '<table><tr><th>Gate</th>' + [0, 1, 2, 3, 4, 5, 6, 7, 8].map(g => '<th>' + g + '</th>').join('') + '</tr>'
+      + '<tr><th>Max moving</th>' + (c.max_m || []).map(v => '<td>' + v + '</td>').join('') + '</tr>'
+      + '<tr><th>Max still</th>' + (c.max_s || []).map(v => '<td>' + v + '</td>').join('') + '</tr></table>';
+  }
+  box.innerHTML = h;
+  if (prevCalStage !== 'done' && c.stage === 'done') refreshValues();
+  prevCalStage = c.stage;
+}
+function renderRadarTab() {
+  const r = S.radar || {}; const names = ['nobody', 'moving', 'still', 'moving + still'];
+  const away = S.away || {};
+  lab('r_counted', away.seen ? 'yes' : 'no (last seen ' + fmtAgo(away.ago) + ')');
+  const cam = S.cam || {};
+  lab('r_cam', !cam.on ? 'off' : !cam.live ? 'not heard: radar only'
+      : cam.owner_ago < 0 ? (cam.veto ? 'has not seen you yet: the radar does not count' : 'starting: radar only')
+      : (cam.veto ? 'last saw you in the seat ' + fmtAgo(cam.owner_ago) + ': the radar does not count'
+                  : 'saw you in the seat ' + fmtAgo(cam.owner_ago)));
+  lab('r_state', names[(r.st || 0) & 3] + (r.eng ? ' (per-gate data on)' : ''));
+  lab('r_fps', r.fps != null ? r.fps + ' fps' : '-'); lab('r_ok', r.ok ? 'ok' : 'not ok');
+  lab('r_m', r.md != null ? r.md + ' cm, energy ' + r.me : '-'); lab('r_s', r.sd != null ? r.sd + ' cm, energy ' + r.se : '-');
+  lab('r_d', r.dd != null ? r.dd + ' cm' : '-'); lab('r_out', r.out ? 'high (presence)' : 'low');
+  renderRadarBars(); renderCal();
+}
+function renderSystem() {
+  lab('s_fw', S.fw || '-'); lab('s_commit', S.commit || '-'); lab('s_built', S.built || '-'); lab('s_mac', S.mac || '-');
+  lab('s_net', (S.mode || '-') + (S.ssid ? ' (' + S.ssid + ')' : '')); lab('s_ip', S.ip || '-');
+  lab('s_up', fmtUp(S.up)); lab('s_heap', S.heap != null ? Math.round(S.heap / 1024) + ' kB' : '-');
+  const m = S.mqtt || {}; lab('s_mqtt', m.on ? (m.state || '-') : 'disabled'); lab('s_mqtterr', m.err || '-');
+}
+function render() {
+  if (!S) return;
+  try { renderPills(); } catch (e) {}
+  try { renderDashboard(); } catch (e) {}
+  try { renderRadarTab(); } catch (e) {}
+  try { renderSystem(); } catch (e) {}
+}
+
+async function poll() {
+  clearTimeout(timer);
+  if (document.hidden) { timer = setTimeout(poll, 1000); return; }
+  try {
+    const r = await req('/api/state?log=' + logNext, null, 6000);
+    if (r.status === 401) { $('pills').innerHTML = '<span class="pill bad">sign-in needed - reload the page</span>'; return; }
+    const j = await r.json();
+    S = j; addLog(j.log); render(); pollMs = 1000;
+  } catch (e) {
+    pollMs = Math.min(pollMs * 2, 10000);
+    $('pills').innerHTML = '<span class="pill bad">no answer from the bench node - retrying in ' + Math.round(pollMs / 1000) + ' s</span>';
+  }
+  timer = setTimeout(poll, pollMs);
+}
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+buildNav();
+loadSchema();
+loadValues();
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+# Bench node — HARDWARE TEST BUILD.
+#
+# Exercises every part of the bench node and shows every state on a password-protected web page on the S3.
+# The keys, LEDs, buzzer and screen run the real user interface (bench_ui.h) against a SIMULATED bar.
+#
+# This build has NO automatic cut and renews no lease. The keys never switch the Shelly.
+# Only the "Shelly:" buttons on the web page switch the real bar. While this build runs, the Shelly is a plain
+# smart switch: do not leave tools on unattended.
+
+# The pins are in the firmware's pin file, firmware/src/pins.h. This ESPHome draft is not used and no longer builds.
+
+substitutions:
+  shelly_host: !secret shelly_host
+
+esphome:
+  name: bench-node
+  friendly_name: Bench Node
+  includes:
+    - bench_ui.h
+  on_boot:
+    priority: -100
+    then:
+      - lambda: id(oled).set_contrast(id(oled_contrast).state / 100.0f);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s          # never reboot because WiFi is gone: a reboot mid-countdown is worse
+  ap:
+    ssid: "Bench Node Fallback"
+    password: !secret fallback_ap_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s          # never reboot because Home Assistant is gone
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+  version: 3
+  auth:
+    username: !secret web_username
+    password: !secret web_password
+
+http_request:
+  timeout: 3s
+  verify_ssl: false
+
+globals:
+  - id: ui
+    type: bench::Ui
+  - id: sim_live
+    type: bool
+    initial_value: "false"
+  - id: tone_until
+    type: uint32_t
+    initial_value: "0"
+  - id: tone_hz
+    type: float
+    initial_value: "0"
+  - id: sweep_hz
+    type: float
+    initial_value: "1500"
+
+# ---------------------------------------------------------------------------------------------------------
+# Presence sensor (HLK-LD2410C), UART at 256000 baud
+
+uart:
+  id: radar_uart
+  rx_pin: ${RADAR_to_S3}
+  tx_pin: ${S3_to_RADAR}
+  baud_rate: 256000
+  parity: NONE
+  stop_bits: 1
+
+ld2410:
+  id: radar
+  uart_id: radar_uart
+
+# ---------------------------------------------------------------------------------------------------------
+# Screen
+
+i2c:
+  sda: ${I2C_SDA}
+  scl: ${I2C_SCL}
+  frequency: 400kHz
+
+font:
+  - file: "gfonts://Roboto"
+    id: f_small
+    size: 11
+  - file: "gfonts://Roboto@500"
+    id: f_big
+    size: 24
+
+display:
+  - platform: ssd1306_i2c
+    id: oled
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 100ms
+    lambda: |-
+      using namespace bench;
+      const uint32_t now = millis();
+      auto &u = id(ui);
+      if (id(oled_test).state) {          // test pattern: frame, cross and text
+        it.rectangle(0, 0, 128, 64);
+        it.line(0, 0, 127, 63);
+        it.line(0, 63, 127, 0);
+        it.print(64, 32, id(f_small), TextAlign::CENTER, "OLED TEST");
+        return;
+      }
+      auto hm = [](uint32_t ms, char *buf, size_t n) {
+        uint32_t s = (ms + 999) / 1000;
+        if (s >= 3600) snprintf(buf, n, "%u h %02u", (unsigned) (s / 3600), (unsigned) (s % 3600 / 60));
+        else snprintf(buf, n, "%u:%02u", (unsigned) (s / 60), (unsigned) (s % 60));
+      };
+      char a[16], b[16];
+      switch (u.page()) {
+        case Page::Dark:
+          return;                          // blank screen: no burn-in
+        case Page::Warning:
+          it.print(64, 0, id(f_small), TextAlign::TOP_CENTER, "POWER CUT IN");
+          hm(u.warning_left_ms(now), a, sizeof(a));
+          it.print(64, 14, id(f_big), TextAlign::TOP_CENTER, a);
+          it.print(64, 52, id(f_small), TextAlign::TOP_CENTER, "press any key");
+          return;
+        case Page::HoldToCut: {
+          it.print(64, 8, id(f_small), TextAlign::TOP_CENTER, "Keep holding to cut");
+          int w = (int) (u.hold_to_cut_progress(now) * 120);
+          it.rectangle(4, 30, 120, 14);
+          it.filled_rectangle(4, 30, w, 14);
+          it.print(64, 52, id(f_small), TextAlign::TOP_CENTER, "let go to cancel");
+          return;
+        }
+        case Page::Menu: {
+          it.print(64, 0, id(f_small), TextAlign::TOP_CENTER, "Stay on for");
+          uint32_t m = u.menu_minutes();
+          if (m == 0) snprintf(a, sizeof(a), u.hold_active() ? "Cancel" : "--");
+          else if (m >= 60) snprintf(a, sizeof(a), m % 60 ? "%u h %02u" : "%u h", (unsigned) (m / 60), (unsigned) (m % 60));
+          else snprintf(a, sizeof(a), "%u min", (unsigned) m);
+          it.print(64, 14, id(f_big), TextAlign::TOP_CENTER, a);
+          it.print(0, 63, id(f_small), TextAlign::BOTTOM_LEFT, "OK");
+          it.print(64, 63, id(f_small), TextAlign::BOTTOM_CENTER, u.menu_hours() ? "+1h" : "+5m");
+          it.print(127, 63, id(f_small), TextAlign::BOTTOM_RIGHT, u.menu_hours() ? "-1h" : "-5m");
+          return;
+        }
+        case Page::Toast: {
+          const char *t = "";
+          switch (u.toast()) {
+            case Toast::TurnedOn: t = "Power ON"; break;
+            case Toast::TurnedOff: t = "Power OFF"; break;
+            case Toast::CeilingReset: t = "Timer reset"; break;
+            case Toast::HoldStarted: t = "Hold started"; break;
+            case Toast::HoldCancelled: t = "Hold cancelled"; break;
+            case Toast::MenuUnchanged: t = "No change"; break;
+            case Toast::WarningAnswered: t = "OK, staying on"; break;
+            case Toast::AlarmSilenced: t = "Alarm silenced"; break;
+            default: break;
+          }
+          it.print(64, 32, id(f_small), TextAlign::CENTER, t);
+          return;
+        }
+        case Page::Status:
+          it.print(0, 0, id(f_small), TextAlign::TOP_LEFT, u.bar_live() ? "Power ON" : "Power OFF");
+          it.print(127, 0, id(f_small), TextAlign::TOP_RIGHT, id(radar_presence).state ? "seen" : "not seen");
+          if (u.alarm_active()) it.print(64, 32, id(f_big), TextAlign::CENTER, "ALARM");
+          else if (u.hold_active()) {
+            hm(u.hold_left_ms(now), a, sizeof(a));
+            it.print(64, 16, id(f_small), TextAlign::TOP_CENTER, "Hold");
+            it.print(64, 30, id(f_big), TextAlign::TOP_CENTER, a);
+          } else if (u.bar_live()) {
+            hm(u.ceiling_left_ms(now), a, sizeof(a));
+            it.print(64, 16, id(f_small), TextAlign::TOP_CENTER, "Timer");
+            it.print(64, 30, id(f_big), TextAlign::TOP_CENTER, a);
+          }
+          return;
+        case Page::Timers:
+          hm(u.hold_left_ms(now), a, sizeof(a));
+          hm(u.ceiling_left_ms(now), b, sizeof(b));
+          it.printf(0, 4, id(f_small), "Hold      %s", u.hold_active() ? a : "--");
+          it.printf(0, 20, id(f_small), "Timer     %s", u.bar_live() ? b : "--");
+          it.printf(0, 36, id(f_small), "Bar sense %s", id(bar_live_sense).state ? "live" : "dead");
+          return;
+        case Page::Sensor:
+          it.printf(0, 4, id(f_small), "Presence  %s", id(radar_presence).state ? "yes" : "no");
+          it.printf(0, 20, id(f_small), "Moving    %.0f cm", id(radar_moving_distance).state);
+          it.printf(0, 36, id(f_small), "Still     %.0f cm", id(radar_still_distance).state);
+          it.printf(0, 52, id(f_small), "OUT pin   %s", id(radar_out_pin).state ? "high" : "low");
+          return;
+      }
+
+# ---------------------------------------------------------------------------------------------------------
+# Outputs: key LEDs and buzzer, all on LEDC PWM
+
+output:
+  - platform: ledc
+    id: led_on_out
+    pin: ${LED_ON}
+    frequency: 1000Hz
+  - platform: ledc
+    id: led_override_out
+    pin: ${LED_OVERRIDE}
+    frequency: 1000Hz
+  - platform: ledc
+    id: led_fn_out
+    pin: ${LED_FN}
+    frequency: 1000Hz
+  - platform: ledc
+    id: buzzer_out
+    pin: ${BUZZER}
+    frequency: 2200Hz
+
+# The main loop: user interface timing, simulated bar, LEDs and buzzer.
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          using namespace bench;
+          const uint32_t now = millis();
+          auto &u = id(ui);
+          Requests r = u.tick(now);
+          if (r.turn_on) id(sim_live) = true;
+          if (r.turn_off) id(sim_live) = false;
+          if (u.bar_live() != id(sim_live)) u.set_bar_live(id(sim_live), now);
+          if (id(sim_bar).state != id(sim_live)) id(sim_bar).publish_state(id(sim_live));
+
+          // LEDs
+          const float bright = id(led_brightness).state / 100.0f;
+          const std::string mode = id(led_test).current_option();
+          float lv[3];
+          for (int k = 0; k < 3; k++) {
+            if (mode == "All on") lv[k] = 1.0f;
+            else if (mode == "All off") lv[k] = 0.0f;
+            else if (mode == "Breathe all") { uint32_t t = now % 3000; float x = t < 1500 ? t / 1500.0f : (3000 - t) / 1500.0f; lv[k] = 0.15f + 0.85f * x * x; }
+            else lv[k] = u.led((Key) k, now);
+          }
+          id(led_on_out).set_level(lv[0] * bright);
+          id(led_override_out).set_level(lv[1] * bright);
+          id(led_fn_out).set_level(lv[2] * bright);
+
+          // Buzzer: one-shot tones from key events, then the warning and alarm patterns.
+          const float f = id(buzzer_frequency).state;
+          const float vol = id(buzzer_volume).state / 100.0f;
+          switch (u.take_tone()) {
+            case Tone::Click:   id(tone_hz) = f;         id(tone_until) = now + 15;  break;
+            case Tone::Confirm: id(tone_hz) = f * 1.25f; id(tone_until) = now + 80;  break;
+            case Tone::Cut:     id(tone_hz) = f * 0.75f; id(tone_until) = now + 300; break;
+            default: break;
+          }
+          float hz = 0;
+          if ((int32_t) (id(tone_until) - now) > 0) hz = id(tone_hz);
+          else if (u.warning_sound(now)) hz = f;
+          else if (u.alarm_active() && !u.alarm_silenced()) hz = ((now / 250) % 2) ? f : f * 0.8f;
+          if (id(buzzer_sweeping).state) hz = id(sweep_hz);
+          if (hz > 0) {
+            id(buzzer_out).update_frequency(hz);
+            id(buzzer_out).set_level(vol);
+          } else {
+            id(buzzer_out).set_level(0);
+          }
+
+# ---------------------------------------------------------------------------------------------------------
+# Inputs
+
+binary_sensor:
+  - platform: gpio
+    id: key_on
+    name: "Key ON"
+    pin: { number: "${KEY_ON}", inverted: true, mode: { input: true, pullup: true } }
+    filters: [ delayed_on_off: 15ms ]
+    on_press: [ lambda: "id(ui).key_down(bench::Key::On, millis());" ]
+    on_release:
+      - lambda: |-
+          auto r = id(ui).key_up(bench::Key::On, millis());
+          if (r.turn_on) id(sim_live) = true;
+  - platform: gpio
+    id: key_override
+    name: "Key OVERRIDE"
+    pin: { number: "${KEY_OVERRIDE}", inverted: true, mode: { input: true, pullup: true } }
+    filters: [ delayed_on_off: 15ms ]
+    on_press: [ lambda: "id(ui).key_down(bench::Key::Override, millis());" ]
+    on_release: [ lambda: "id(ui).key_up(bench::Key::Override, millis());" ]
+  - platform: gpio
+    id: key_fn
+    name: "Key FN"
+    pin: { number: "${KEY_FN}", inverted: true, mode: { input: true, pullup: true } }
+    filters: [ delayed_on_off: 15ms ]
+    on_press: [ lambda: "id(ui).key_down(bench::Key::Fn, millis());" ]
+    on_release: [ lambda: "id(ui).key_up(bench::Key::Fn, millis());" ]
+
+  # Bar-live sense from the mains box. Internal pull-up too: an unplugged cable reads "dead", not floating.
+  - platform: gpio
+    id: bar_live_sense
+    name: "Bar sense (BAR_LIVE)"
+    pin: { number: "${BAR_LIVE}", inverted: true, mode: { input: true, pullup: true } }
+    filters: [ delayed_on_off: 50ms ]
+
+  # The presence sensor's OUT pin, read directly: a second reading of the same sensor.
+  - platform: gpio
+    id: radar_out_pin
+    name: "Radar OUT pin"
+    pin: { number: "${RADAR_OUT}", mode: { input: true } }
+
+  - platform: ld2410
+    ld2410_id: radar
+    has_target: { id: radar_presence, name: "Radar presence" }
+    has_moving_target: { name: "Radar moving target" }
+    has_still_target: { name: "Radar still target" }
+    out_pin_presence_status: { name: "Radar OUT (reported)" }
+
+sensor:
+  - platform: ld2410
+    ld2410_id: radar
+    moving_distance: { id: radar_moving_distance, name: "Radar moving distance" }
+    still_distance: { id: radar_still_distance, name: "Radar still distance" }
+    moving_energy: { name: "Radar moving energy" }
+    still_energy: { name: "Radar still energy" }
+    detection_distance: { name: "Radar detection distance" }
+    g0: { move_energy: { name: "g0 move energy" }, still_energy: { name: "g0 still energy" } }
+    g1: { move_energy: { name: "g1 move energy" }, still_energy: { name: "g1 still energy" } }
+    g2: { move_energy: { name: "g2 move energy" }, still_energy: { name: "g2 still energy" } }
+    g3: { move_energy: { name: "g3 move energy" }, still_energy: { name: "g3 still energy" } }
+    g4: { move_energy: { name: "g4 move energy" }, still_energy: { name: "g4 still energy" } }
+    g5: { move_energy: { name: "g5 move energy" }, still_energy: { name: "g5 still energy" } }
+    g6: { move_energy: { name: "g6 move energy" }, still_energy: { name: "g6 still energy" } }
+    g7: { move_energy: { name: "g7 move energy" }, still_energy: { name: "g7 still energy" } }
+    g8: { move_energy: { name: "g8 move energy" }, still_energy: { name: "g8 still energy" } }
+  - platform: wifi_signal
+    name: "WiFi signal"
+    update_interval: 10s
+  - platform: uptime
+    name: "Uptime"
+  - platform: template
+    name: "Hold left"
+    unit_of_measurement: "min"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: return id(ui).hold_left_ms(millis()) / 60000.0f;
+  - platform: template
+    name: "Timer left (ceiling)"
+    unit_of_measurement: "min"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: return id(ui).ceiling_left_ms(millis()) / 60000.0f;
+  - platform: template
+    id: sweep_now
+    name: "Buzzer sweep frequency"
+    unit_of_measurement: "Hz"
+    accuracy_decimals: 0
+    update_interval: never
+
+text_sensor:
+  - platform: ld2410
+    ld2410_id: radar
+    version: { name: "Radar firmware" }
+    mac_address: { name: "Radar Bluetooth MAC" }
+  - platform: template
+    id: shelly_reply
+    name: "Shelly: last reply"
+  - platform: wifi_info
+    mac_address: { name: "Bench node MAC" }
+    ip_address: { name: "Bench node IP" }
+
+# ---------------------------------------------------------------------------------------------------------
+# Controls on the web page
+
+number:
+  - platform: ld2410
+    ld2410_id: radar
+    timeout: { name: "Radar hold time" }
+    max_move_distance_gate: { name: "Radar max moving gate" }
+    max_still_distance_gate: { name: "Radar max still gate" }
+    g0: { move_threshold: { name: "g0 move threshold" }, still_threshold: { name: "g0 still threshold" } }
+    g1: { move_threshold: { name: "g1 move threshold" }, still_threshold: { name: "g1 still threshold" } }
+    g2: { move_threshold: { name: "g2 move threshold" }, still_threshold: { name: "g2 still threshold" } }
+    g3: { move_threshold: { name: "g3 move threshold" }, still_threshold: { name: "g3 still threshold" } }
+    g4: { move_threshold: { name: "g4 move threshold" }, still_threshold: { name: "g4 still threshold" } }
+    g5: { move_threshold: { name: "g5 move threshold" }, still_threshold: { name: "g5 still threshold" } }
+    g6: { move_threshold: { name: "g6 move threshold" }, still_threshold: { name: "g6 still threshold" } }
+    g7: { move_threshold: { name: "g7 move threshold" }, still_threshold: { name: "g7 still threshold" } }
+    g8: { move_threshold: { name: "g8 move threshold" }, still_threshold: { name: "g8 still threshold" } }
+  - platform: template
+    id: led_brightness
+    name: "LED brightness"
+    unit_of_measurement: "%"
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 60
+    optimistic: true
+    restore_value: true
+    mode: slider
+  - platform: template
+    id: buzzer_frequency
+    name: "Buzzer frequency"
+    unit_of_measurement: "Hz"
+    min_value: 1000
+    max_value: 5000
+    step: 50
+    initial_value: 2200
+    optimistic: true
+    restore_value: true
+    mode: slider
+  - platform: template
+    id: buzzer_volume
+    name: "Buzzer volume (duty)"
+    unit_of_measurement: "%"
+    min_value: 0
+    max_value: 50
+    step: 1
+    initial_value: 50
+    optimistic: true
+    restore_value: true
+    mode: slider
+  - platform: template
+    id: oled_contrast
+    name: "OLED contrast"
+    unit_of_measurement: "%"
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 80
+    optimistic: true
+    restore_value: true
+    mode: slider
+    on_value:
+      - lambda: id(oled).set_contrast(x / 100.0f);
+
+select:
+  - platform: ld2410
+    ld2410_id: radar
+    distance_resolution: { name: "Radar gate size" }
+    light_function: { name: "Radar light function" }
+    out_pin_level: { name: "Radar OUT level" }
+  - platform: template
+    id: led_test
+    name: "LED test"
+    options: [ "Auto", "All on", "All off", "Breathe all" ]
+    initial_option: "Auto"
+    optimistic: true
+
+switch:
+  - platform: ld2410
+    ld2410_id: radar
+    engineering_mode: { name: "Radar engineering mode (per-gate data)" }
+    bluetooth: { name: "Radar Bluetooth" }
+  - platform: template
+    id: sim_bar
+    name: "Simulated bar live"
+    lambda: return id(sim_live);
+    turn_on_action: [ lambda: "id(sim_live) = true;" ]
+    turn_off_action: [ lambda: "id(sim_live) = false;" ]
+  - platform: template
+    id: sim_alarm
+    name: "Simulate alarm"
+    optimistic: true
+    turn_on_action: [ lambda: "id(ui).set_alarm(true);" ]
+    turn_off_action: [ lambda: "id(ui).set_alarm(false);" ]
+  - platform: template
+    id: oled_test
+    name: "OLED test pattern"
+    optimistic: true
+  - platform: template
+    id: buzzer_sweeping
+    name: "Buzzer sweep (1500-5000 Hz)"
+    optimistic: true
+    turn_on_action:
+      - script.execute: sweep
+    turn_off_action:
+      - script.stop: sweep
+
+script:
+  - id: sweep
+    mode: restart
+    then:
+      - lambda: id(sweep_hz) = 1500;
+      - while:
+          condition:
+            lambda: return id(sweep_hz) <= 5000;
+          then:
+            - lambda: id(sweep_now).publish_state(id(sweep_hz));
+            - delay: 400ms
+            - lambda: id(sweep_hz) += 100;
+      - switch.turn_off: buzzer_sweeping
+
+button:
+  - platform: ld2410
+    ld2410_id: radar
+    restart: { name: "Radar restart" }
+    query_params: { name: "Radar read settings" }
+  - platform: template
+    name: "Test beep"
+    on_press:
+      - lambda: |-
+          id(tone_hz) = id(buzzer_frequency).state;
+          id(tone_until) = millis() + 300;
+  - platform: template
+    name: "Simulate warning (60 s)"
+    on_press:
+      - lambda: id(ui).start_warning(60000, millis());
+  - platform: restart
+    name: "Restart bench node"
+
+  # These switch the REAL bar.
+  - platform: template
+    name: "Shelly: read status"
+    on_press:
+      - http_request.get:
+          url: "http://${shelly_host}/rpc/Switch.GetStatus?id=0"
+          capture_response: true
+          max_response_buffer_size: 1024
+          on_response:
+            then:
+              - lambda: id(shelly_reply).publish_state(body);
+          on_error:
+            then:
+              - lambda: id(shelly_reply).publish_state("no reply");
+  - platform: template
+    name: "Shelly: ON"
+    on_press:
+      - http_request.get:
+          url: "http://${shelly_host}/rpc/Switch.Set?id=0&on=true"
+          capture_response: true
+          on_response:
+            then:
+              - lambda: id(shelly_reply).publish_state(body);
+          on_error:
+            then:
+              - lambda: id(shelly_reply).publish_state("no reply");
+  - platform: template
+    name: "Shelly: OFF"
+    on_press:
+      - http_request.get:
+          url: "http://${shelly_host}/rpc/Switch.Set?id=0&on=false"
+          capture_response: true
+          on_response:
+            then:
+              - lambda: id(shelly_reply).publish_state(body);
+          on_error:
+            then:
+              - lambda: id(shelly_reply).publish_state("no reply");
+  - platform: template
+    name: "Shelly: lease test (ON, auto-OFF in 60 s)"
+    on_press:
+      - http_request.get:
+          url: "http://${shelly_host}/rpc/Switch.Set?id=0&on=true&toggle_after=60"
+          capture_response: true
+          on_response:
+            then:
+              - lambda: id(shelly_reply).publish_state(body);
+          on_error:
+            then:
+              - lambda: id(shelly_reply).publish_state("no reply");

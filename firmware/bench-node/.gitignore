@@ -1,0 +1,13 @@
+secrets.yaml
+.esphome/
+tests/test_ui
+hwtest/.pio/
+hwtest/include/secrets.h
+firmware/.pio/
+firmware/include/secrets.h
+firmware/include/version.h
+firmware/test/test_core
+firmware/test/test_frigate
+firmware/tools/render
+firmware/tools/out/
+firmware/tools/sel/

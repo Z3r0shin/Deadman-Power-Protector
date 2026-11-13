@@ -1,0 +1,41 @@
+﻿Unit,Qty,Part,Reference,Note
+Mains box,1,Shelly 1PM Gen4 (S4SW-001P16EU),U1,
+Mains box,1,NEMA 5-15P plug on 14/3 SJT cord,P1,
+Mains box,1,NEMA 5-15R receptacle,J1,
+Mains box,1,"5 V USB charger, 1 A or more",PS1,Bench node supply
+Mains box,1,"JVC AA-R456 adapter, 4.5 V 600 mA",PS2,Bar-sense supply
+Mains box,1,"Resistor 130 Ω 5 W, cement",R1,Snubber
+Mains box,1,Capacitor 100 nF X2 275 VAC,C1,Snubber
+Mains box,1,PC817 optocoupler,U2,Bar sense
+Mains box,2,1N4148 diode,"D1, D4",
+Mains box,1,"LED, green, 5 mm",D3,Bar live
+Mains box,2,Resistor 1 kΩ,"R2, R12",
+Mains box,1,Resistor 10 kΩ,R3,BAR_LIVE pull-up
+Mains box,1,Capacitor 100 nF,C4,On BAR_LIVE
+Mains box,1,USB-C socket,P3,Power out
+Mains box,,"Wago connectors (believed to be model 221), 14 AWG wire, 22 AWG wire",,Any connector that joins the conductors will do
+Bench node,1,"ESP32-S3 devkit N16R8, USB-C (YD-ESP32-S3)",U5,
+Bench node,1,"0.96"" SSD1306 I2C OLED, 128 x 64",U3,
+Bench node,3,Momentary switch (Cherry MX type) with a yellow 3 mm LED,"SW1, SW2, SW3","ON, OVERRIDE, FN"
+Bench node,3,Resistor 1 kΩ,"R4, R5, R6",Key LEDs
+Bench node,1,"Passive magnetic buzzer, about 40 Ω, 11.8 x 8.35 mm",BZ1,
+Bench node,1,BC337 NPN transistor,Q1,"Buzzer driver; find C, B, E with a tester"
+Bench node,1,1N5819 Schottky diode,D2,"Across the buzzer, absorbs the coil's turn-off spike"
+Bench node,1,Resistor 470 Ω,R7,Q1 base
+Bench node,1,Resistor 10 kΩ,R8,Q1 base pull-down
+Bench node,1,"Capacitor 100 µF 25 V, polarized",C2,On 5VDC
+Bench node,1,"Capacitor 10 µF, polarized",C7,On S3_3V3
+Bench node,2,Capacitor 100 nF,"C3, C8",
+Bench node,1,USB-C socket,P2,Power in
+Bench node,,"Perfboard, headers, small protoboard for the buzzer",,A convenience
+Sensor node,1,HLK-LD2410C mmWave presence module,U4,
+Sensor node,1,"Capacitor 10 µF, polarized",C5,On 5VDC
+Sensor node,1,Capacitor 100 nF,C6,On 5VDC
+Cables,1,"USB-C to USB-C cable, about 3 m",U22/U21,Mains box to bench node; 5 V and ground only
+Cables,1,"Cat7 S/FTP cable, about 3 m",,Bar sense; shield to ground at the bench node end only
+Cables,1,"Shielded USB-type cable, about 1.5 m",,Radar; shield to ground at the bench node end only
+Cables,,"22 AWG wire, under 12 cm per run",,"Screen, keys and buzzer cables; individual wires, soldered straight to the keys and the buzzer board"
+Cables,3,"JST-XH 2.5 mm, 3-pin, plug and header pair","U7/U20, U8/U16, U11/U23",A convenience
+Cables,2,"JST-XH 2.5 mm, 4-pin, plug and header pair","U9/U17, U15/U18",A convenience
+Cables,2,"JST-XH 2.5 mm, 5-pin, plug and header pair","U6/U14, U12/U13",A convenience
+Cables,1,"JST-XH 2.5 mm, 7-pin, plug and header pair",U10/U19,A convenience

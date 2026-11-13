@@ -1,0 +1,2 @@
+{"bench_host": "BENCH_NODE_IP", "shelly_host": "SHELLY_IP", "user": "admin", "password": "PORTAL_PASSWORD",
+ "bench_mac": "AA:BB:CC:DD:EE:FF", "shelly_mac": "AABBCCDDEEFF"}

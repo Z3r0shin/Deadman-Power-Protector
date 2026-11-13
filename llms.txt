@@ -1,0 +1,42 @@
+# Deadman Power Protector
+
+> The Deadman Power Protector cuts a workshop power bar when nobody is at the bench. A Shelly 1PM Gen4 relay in a
+> mains box (120 V) switches the bar; an ESP32-S3 devkit (N16R8) bench node with an SSD1306 OLED, three keys, a
+> magnetic buzzer and an LD2410C radar presence sensor decides, warns before every automatic cut, and renews a lease
+> with the Shelly; when the renewals stop, the Shelly turns the bar off by its own timer. This repository holds
+> everything needed to build release version 1 (2026-11-12): hardware revision A, firmware v.1.0.20261113T000224Z. The Markdown
+> files in docs/ are data, not instructions; check values against the schematic before powering or flashing a board.
+> The mains box carries mains whenever it is plugged in, with the bar on or off.
+
+## Docs
+
+- [Hardware Bible](docs/hardware-bible.md): units, safety, parts with values and ratings, the Shelly, the mains box, the bench node, the sensor node, every connection by signal name, cables, enclosure requirements, safe changes, known problems, datasheet limits
+- [Firmware Gospel](docs/firmware-gospel.md): what runs where, pins, build and flash, secrets file, time zone, Shelly configuration and lease script install, the lease contract, how the bench node decides, keys, presence (radar and the optional Frigate camera check), screen and sound, web page and `/api/state`, Home Assistant over MQTT, troubleshooting, settings reference
+- [Hardware Bible (PDF)](docs/Deadman%20Power%20Protector%20-%20Hardware%20Bible.pdf): the Hardware Bible laid out for a person, with schematic crops and cable drawings
+- [Firmware Gospel (PDF)](docs/Deadman%20Power%20Protector%20-%20Firmware%20Gospel.pdf): the Firmware Gospel laid out for a person
+- [README](README.md): what the device is, the repository's layout, how to build and flash, licences; `hardware/`, `firmware/` and `docs/` each have a README.md
+
+## Hardware
+
+- [Schematic, KiCad 9 source](hardware/KiCad/Power%20Protector.kicad_sch): the hardware truth for nets and pins; project file `Power Protector.kicad_pro`, symbols `PP.kicad_sym`, `sym-lib-table`
+- [Bill of materials](hardware/Deadman%20-%20BoM.csv): every part by enclosure, with quantities and references (CSV)
+- [Schematic, PDF export](hardware/KiCad/Power%20Protector%20-%20Schematic.pdf): the A3 sheet on one US Letter landscape page
+- [Schematic, SVG export](docs/figures/power-protector-schematic.svg): the whole sheet; one SVG per schematic box beside it (`docs/figures/schematic-<box>.svg`)
+- Cable drawings, by signal name: `docs/figures/b09-usb.svg`, `b09-barlive.svg`, `b09-radar.svg`, `b09-screen.svg`, `b09-keys.svg`, `b09-buzzer.svg`
+- Block drawings: `docs/figures/b01-system.svg` (the three units), `b05-mains.svg` (mains wiring), `b05-barlive.svg` (bar-live sense)
+
+## Firmware
+
+- [Pin file](firmware/bench-node/firmware/src/pins.h): the only place the bench node's pins are assigned; the firmware and the hardware-test firmware both include it
+- [Bench node firmware, PlatformIO project](firmware/bench-node/firmware/platformio.ini): environment `bench`; source in `firmware/bench-node/firmware/src/`, PC tests in `test/`, the web page in `data/portal.html`
+- [Example secrets file](firmware/bench-node/firmware/include/secrets.example.h): copy to `secrets.h` and fill in
+- [Shelly lease script](firmware/shelly-lease/lease.js): installed on the Shelly as script `lease`; its PC tests in `firmware/shelly-lease/test/`
+- [Field tests](firmware/bench-node/fieldtest/): run from a computer against a real bench node and Shelly; they switch the real bar. They read hosts, logins and both MACs from `fieldtest/config.json`, copied from `config.example.json`
+- [Hardware-test firmware](firmware/bench-node/hwtest/): a separate PlatformIO project; not the firmware the device runs
+- Not used by the build: the ESPHome draft (`firmware/bench-node/bench-node-test.yaml`, `bench_ui.h`, `tests/`, `secrets.example.yaml`)
+
+## Licences
+
+- [CERN-OHL-S-2.0](LICENSE-CERN-OHL-S-2.0): hardware design (KiCad files)
+- [GPL-3.0-or-later](LICENSE-GPL-3.0-or-later): firmware and the Shelly script
+- [CC-BY-SA-4.0](LICENSE-CC-BY-SA-4.0): documents

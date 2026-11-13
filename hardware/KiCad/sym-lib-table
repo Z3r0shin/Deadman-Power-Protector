@@ -1,0 +1,4 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "PP")(type "KiCad")(uri "${KIPRJMOD}/PP.kicad_sym")(options "")(descr "Power Protector symbols, project-local"))
+)
